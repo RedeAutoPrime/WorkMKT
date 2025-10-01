@@ -38,15 +38,26 @@
         /* Status & Buttons */
         .status-done { color: white; background-color: #28a745; padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
         .status-inprogress { color: #333; background-color: #ffc107; padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
-        .btn { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.3s; margin-bottom: 5px; font-size: 0.9em; }
+        .btn { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.3s; margin-bottom: 5px; font-size: 0.9em; display: inline-block; }
         .btn-start { background-color: #007bff; color: white; }
         .btn-finish { background-color: #dc3545; color: white; }
+        .btn-adjust { background-color: #ff9800; color: white; margin-left: 5px; }
         .btn-export { background-color: #6f42c1; color: white; margin-right: 10px; margin-top: 15px; }
         .reset-btn { background-color: #6c757d; color: white; margin-top: 15px; float: right; }
         .action-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; flex-wrap: wrap; }
         
         /* Print/PDF Exclusion */
         @media print { .no-print { display: none !important; } }
+
+        /* Estilos do Modal */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: 10px; max-width: 90%; width: 500px; text-align: left; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); }
+        .modal-content h3 { color: #0056b3; margin-top: 0; }
+        .modal-content p { margin-bottom: 10px; line-height: 1.5; }
+        .modal-content .modal-footer { margin-top: 20px; text-align: right; }
+        .modal-content .modal-info { background-color: #f7f9fc; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e0e6f1; }
+        .modal-content .modal-info strong { color: #333; }
+        .btn-delete-record { background-color: #dc3545; color: white; }
 
         /* RESPONSIVIDADE MOBILE */
         @media screen and (max-width: 768px) {
@@ -60,6 +71,7 @@
             .action-controls { flex-direction: column; align-items: stretch; }
             .btn-export, .reset-btn { width: 100%; margin: 5px 0; float: none; }
             .tab-container { white-space: nowrap; }
+            .btn { margin-top: 5px; }
         }
     </style>
 </head>
@@ -70,7 +82,7 @@
     <div id="status-message">Conectando ao banco de dados...</div>
 
     <!-- Tabs (Seleção de Empresa) -->
-    <div class="tab-container" id="tab-nav">
+    <div class="tab-container no-print" id="tab-nav">
         <button class="tab-button active" onclick="openTab('AcademiaAutoPrime', event)">AcademiaAutoPrime</button>
         <button class="tab-button" onclick="openTab('RedeAutoPrime', event)">RedeAutoPrime</button>
         <button class="tab-button" onclick="openTab('VagasAutoPrime', event)">VagasAutoPrime</button>
@@ -155,12 +167,29 @@
         </div>
     </div>
 
-    <!-- Custom Modal for Confirmation (replacing confirm()) -->
-    <div id="custom-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 1000;">
-        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 90%; width: 400px; text-align: center;">
+    <!-- Modal Customizado para Confirmação de Reset (substituindo confirm()) -->
+    <div id="custom-modal" class="modal">
+        <div class="modal-content" style="text-align: center; width: 400px;">
             <p id="modal-message" style="font-size: 1.1em; margin-bottom: 20px;">Tem certeza que deseja REINICIAR o progresso?</p>
             <button class="btn btn-finish" id="modal-cancel" style="margin-right: 15px;">Cancelar</button>
             <button class="btn btn-start" id="modal-confirm">Confirmar Reinício</button>
+        </div>
+    </div>
+    
+    <!-- NOVO: Modal Customizado para Edição/Ajuste de Check-in/out -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <h3>Ajustar / Apagar Registro</h3>
+            <div class="modal-info">
+                <p><strong>Tarefa:</strong> <span id="edit-task-name"></span></p>
+                <p><strong>Check-in:</strong> <span id="edit-checkin-time"></span></p>
+                <p><strong>Check-out:</strong> <span id="edit-checkout-time"></span></p>
+            </div>
+            <p>Se você apagar o registro, a tarefa voltará ao status **Pendente** e você poderá refazer o Check-in.</p>
+            <div class="modal-footer">
+                <button class="btn btn-start" id="edit-modal-cancel" style="margin-right: 15px;">Fechar</button>
+                <button class="btn btn-delete-record" id="edit-modal-delete">Apagar Registro</button>
+            </div>
         </div>
     </div>
 
@@ -179,8 +208,6 @@
 
     // --- CONFIGURAÇÃO FIREBASE ---
     
-    // As variáveis globais __firebase_config e __initial_auth_token são fornecidas pelo ambiente.
-    // Usamos uma configuração padrão como fallback caso as variáveis do ambiente não estejam disponíveis (ex: rodando localmente).
     const DEFAULT_FIREBASE_CONFIG = {
         apiKey: "AIzaSyDcwxL8Z0fl9vUGBljiAcl5070aQJxpmnA",
         authDomain: "workmkt-f30ca.firebaseapp.com",
@@ -204,7 +231,6 @@
         statusEl.style.display = 'block';
 
         try {
-            // Tenta obter a configuração do ambiente, se não, usa o fallback
             let config;
             let initialAuthToken = null;
 
@@ -244,7 +270,6 @@
             statusEl.classList.remove('success');
             statusEl.classList.add('error');
             
-            // Mensagem de erro que aponta diretamente para a origem do problema, incluindo o código do erro
             statusEl.textContent = `ERRO: Não foi possível conectar ao Firebase. Verifique as CHAVES ou REGRAS de segurança. Detalhes: (${error.code || error.message})`;
         }
     };
@@ -268,31 +293,42 @@
         { id: 'sex_ali', day: 'Sexta', name: 'Alinhamento e Feedback (14:00 - 15:00)' }
     ];
     
-    /**
-     * Constrói a referência do documento no Firestore.
-     * Coleção: "Work", Documento: companyId
-     */
     const getCompanyDocRef = (companyId) => {
-        // Usando a coleção "Work" diretamente (conforme solicitada)
         return doc(db, "Work", companyId);
     };
 
-    const formatDateTime = (dateString) => {
-        if (!dateString) return '—';
+    const formatDateTime = (dateString, fallback = '—') => {
+        if (!dateString) return fallback;
         try {
             const d = new Date(dateString);
+            if (isNaN(d)) return fallback; // Checa se a data é inválida
             const datePart = d.toLocaleDateString('pt-BR');
             const timePart = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             return `<span style="white-space: nowrap;">${datePart}</span><br>${timePart}`;
         } catch {
-            return '—'; // Retorna em caso de data inválida
+            return fallback;
         }
     };
+    
+    const formatDateTimePlain = (dateString) => {
+        if (!dateString) return '—';
+        try {
+            const d = new Date(dateString);
+            if (isNaN(d)) return '—';
+            const datePart = d.toLocaleDateString('pt-BR');
+            const timePart = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return `${datePart} ${timePart}`;
+        } catch {
+            return '—';
+        }
+    };
+
 
     const formatDuration = (startTime, endTime) => {
         if (!startTime || !endTime) return '—';
         try {
             const durationMs = new Date(endTime) - new Date(startTime);
+            if (durationMs < 0 || isNaN(durationMs)) return '—';
             const hours = Math.floor(durationMs / (1000 * 60 * 60));
             const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
             return `${hours}h ${minutes}m`;
@@ -301,7 +337,7 @@
         }
     };
 
-    // --- RENDERIZAÇÃO E LÓGICA DE DADOS (ATUALIZADA) ---
+    // --- RENDERIZAÇÃO E LÓGICA DE DADOS ---
 
     const renderTasks = (company) => {
         const list = document.getElementById(`task-list-${company}`);
@@ -323,11 +359,22 @@
             const statusClass = isFinished ? 'status-done' : (isInProgress ? 'status-inprogress' : '');
             const statusText = isFinished ? 'Concluído' : (isInProgress ? 'Em Execução' : 'Pendente');
             
-            const actionButton = `
-                ${!isInProgress && !isFinished ? `<button class="btn btn-start" onclick="checkIn('${company}', '${task.id}')">Check-in</button>` : ''}
-                ${isInProgress ? `<button class="btn btn-finish" onclick="checkOut('${company}', '${task.id}')">Check-out</button>` : ''}
-                ${isFinished ? '—' : ''}
-            `;
+            let actionButton = '';
+            let adjustButton = '';
+            
+            if (!isInProgress && !isFinished) {
+                // Pendente: Apenas Check-in
+                actionButton = `<button class="btn btn-start" onclick="checkIn('${company}', '${task.id}')">Check-in</button>`;
+            } else if (isInProgress) {
+                // Em Execução: Check-out e Ajustar
+                actionButton = `
+                    <button class="btn btn-finish" onclick="checkOut('${company}', '${task.id}')">Check-out</button>
+                    <button class="btn btn-adjust" onclick="showEditModal('${company}', '${task.id}')">Ajustar</button>
+                `;
+            } else if (isFinished) {
+                // Concluído: Apenas Ajustar
+                actionButton = `<button class="btn btn-adjust" onclick="showEditModal('${company}', '${task.id}')">Ajustar</button>`;
+            }
             
             const row = list.insertRow();
             row.innerHTML = `
@@ -368,8 +415,8 @@
         if (!isInitialized) return console.error("Firebase não inicializado. Operação de escrita ignorada.");
         try {
             const docRef = getCompanyDocRef(company);
-            // setDoc com merge: false substitui o mapa de tarefas por completo
-            await setDoc(docRef, data, { merge: false });
+            // setDoc substitui o mapa de tarefas por completo (merge: false é o padrão)
+            await setDoc(docRef, data);
         } catch (error) {
             console.error(`Erro ao atualizar dados para ${company}:`, error);
         }
@@ -378,14 +425,12 @@
     // --- AÇÕES DE CHECK-IN / CHECK-OUT (FIREBASE) ---
 
     window.checkIn = async (company, taskId) => {
-        // **NOVO**: Encontra o nome da tarefa na lista base
         const taskDetails = baseTasks.find(t => t.id === taskId);
         if (!taskDetails) {
             console.error(`Tarefa com ID ${taskId} não encontrada.`);
             return;
         }
 
-        // Clonamos o objeto de dados da empresa para manipulação local
         const data = JSON.parse(JSON.stringify(currentTaskData[company] || {}));
         
         // 1. Faz o Check-out automático em qualquer outra tarefa em andamento
@@ -401,8 +446,7 @@
         data[taskId] = {
             checkInTime: new Date().toISOString(),
             checkOutTime: null,
-            // Adiciona o nome completo da tarefa/etapa ao objeto no Firestore
-            taskName: taskDetails.name 
+            taskName: taskDetails.name // Adiciona o nome completo da tarefa/etapa
         };
         
         await updateFirestore(company, data);
@@ -413,11 +457,73 @@
         
         if (!data[taskId] || data[taskId].checkOutTime) return;
 
-        // O taskName já deve estar presente a partir do check-in
         data[taskId].checkOutTime = new Date().toISOString();
         
         await updateFirestore(company, data);
     };
+    
+    // --- LÓGICA DE EDIÇÃO/REVERSÃO ---
+
+    let currentEditCompany = null;
+    let currentEditTaskId = null;
+    
+    /**
+     * Abre o modal de edição/reversão para a tarefa selecionada.
+     */
+    window.showEditModal = (company, taskId) => {
+        const data = currentTaskData[company];
+        const taskRecord = data ? data[taskId] : null;
+        const taskDetails = baseTasks.find(t => t.id === taskId);
+
+        if (!taskRecord || !taskDetails) {
+            console.error("Registro ou detalhes da tarefa não encontrados para edição.");
+            return;
+        }
+
+        currentEditCompany = company;
+        currentEditTaskId = taskId;
+
+        document.getElementById('edit-task-name').textContent = taskDetails.name;
+        document.getElementById('edit-checkin-time').innerHTML = formatDateTime(taskRecord.checkInTime, 'Ainda não registrado');
+        document.getElementById('edit-checkout-time').innerHTML = formatDateTime(taskRecord.checkOutTime, 'Em execução');
+
+        document.getElementById('edit-modal').style.display = 'flex';
+    };
+
+    /**
+     * Reverte o Check-in/Check-out da tarefa, apagando o registro de tempo.
+     */
+    const revertCheckIn = async (company, taskId) => {
+        if (!company || !taskId) return;
+        
+        const data = JSON.parse(JSON.stringify(currentTaskData[company] || {}));
+        
+        // Apaga as chaves de tempo, revertendo o status da tarefa para Pendente
+        if (data[taskId]) {
+            data[taskId].checkInTime = null;
+            data[taskId].checkOutTime = null;
+            // O taskName é mantido, mas será sobrescrito no próximo Check-in, se necessário
+        }
+
+        document.getElementById('edit-modal').style.display = 'none';
+        
+        await updateFirestore(company, data);
+    };
+    
+    // Configura listeners do modal de Edição
+    document.getElementById('edit-modal-cancel').onclick = () => {
+        document.getElementById('edit-modal').style.display = 'none';
+    };
+    
+    document.getElementById('edit-modal-delete').onclick = async () => {
+        if (currentEditCompany && currentEditTaskId) {
+            await revertCheckIn(currentEditCompany, currentEditTaskId);
+            // Reseta as variáveis após a ação
+            currentEditCompany = null;
+            currentEditTaskId = null;
+        }
+    };
+
 
     // --- FUNÇÕES DE NAVEGAÇÃO E EXPORTAÇÃO ---
 
@@ -432,11 +538,9 @@
         // Configura um novo listener em tempo real
         unsubscribeSnapshot = onSnapshot(docRef, (docSnapshot) => {
             if (docSnapshot.exists()) {
-                // Atualiza o cache local com os dados mais recentes do servidor
                 currentTaskData[company] = docSnapshot.data() || {};
                 console.log(`Dados de ${company} atualizados em tempo real.`);
             } else {
-                // Se o documento não existir, inicializa no cache e cria no Firestore
                 currentTaskData[company] = {};
                 setDoc(docRef, {}); // Cria o documento vazio para iniciar o rastreamento
             }
@@ -449,7 +553,7 @@
     };
 
     window.openTab = (companyName, event = null) => {
-        if (!isInitialized) return; // Não troca de aba se o Firebase não estiver pronto.
+        if (!isInitialized) return;
 
         if (currentActiveCompany === companyName && unsubscribeSnapshot) return;
 
@@ -469,7 +573,7 @@
              document.querySelector(`.tab-button[onclick*="'${companyName}'"]`).classList.add('active');
         }
         
-        setupRealtimeListener(companyName); // Inicia a escuta de dados da nova aba
+        setupRealtimeListener(companyName);
     };
 
     window.exportReport = (company) => {
@@ -487,7 +591,6 @@
         };
         
         const elementToPrint = element.cloneNode(true);
-        // Remove elementos não destinados ao PDF
         elementToPrint.querySelectorAll('.no-print').forEach(el => el.remove());
 
         const header = document.createElement('h2');
@@ -501,7 +604,7 @@
         html2pdf().set(opt).from(wrapper).save();
     };
 
-    // --- FUNÇÕES DE MODAL/CONFIRMAÇÃO ---
+    // --- FUNÇÕES DE MODAL/CONFIRMAÇÃO DE RESET ---
     
     let pendingResetCompany = null;
 
@@ -526,7 +629,6 @@
     };
     
     window.resetAll = async (company) => {
-        // Envia um objeto vazio para o Firebase, resetando o documento.
         await updateFirestore(company, {});
     };
 
