@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Gestão da Rotina Semanal - FIREBASE CHECK</title>
+    <!-- Inclui a biblioteca html2pdf.js para exportar o relatório -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Estilos CSS (Mantidos para Responsividade) -->
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        h1 { color: #0056b3; text-align: center; margin-bottom: 15px; font-size: 1.8em; }
+        h2 { font-size: 1.4em; margin-bottom: 10px; }
+        
+        /* Loading/Status */
+        #status-message { text-align: center; padding: 10px; margin-bottom: 10px; border-radius: 8px; font-weight: bold; background-color: #ffe0b2; color: #ff9800; display: none; }
+        .error { background-color: #f8d7da !important; color: #721c24 !important; }
+        .success { background-color: #d4edda !important; color: #155724 !important; }
+        
+        /* Tabs */
+        .tab-container { display: flex; margin-bottom: 20px; border-bottom: 2px solid #ddd; overflow-x: auto; }
+        .tab-button { padding: 10px 15px; cursor: pointer; border: none; background-color: #f1f1f1; border-top-left-radius: 8px; border-top-right-radius: 8px; margin-right: 5px; font-size: 1em; font-weight: 600; color: #555; flex-shrink: 0; transition: background-color 0.3s; }
+        .tab-button.active { background-color: #0056b3; color: white; border-bottom: 2px solid #0056b3; }
+        .tab-content { display: none; padding-top: 5px; }
+        .tab-content.active { display: block; }
+        
+        /* Progress Bar */
+        .progress-container { margin-bottom: 20px; padding: 15px; border-radius: 8px; background-color: #e9ecef; }
+        .progress-bar { height: 25px; line-height: 25px; background-color: #28a745; width: 0%; text-align: center; color: white; border-radius: 6px; transition: width 0.4s ease; font-weight: bold; }
+        
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; display: table; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; }
+        th { background-color: #0056b3; color: white; font-weight: 600; }
+        
+        /* Status & Buttons */
+        .status-done { color: white; background-color: #28a745; padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .status-inprogress { color: #333; background-color: #ffc107; padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .btn { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.3s; margin-bottom: 5px; font-size: 0.9em; }
+        .btn-start { background-color: #007bff; color: white; }
+        .btn-finish { background-color: #dc3545; color: white; }
+        .btn-export { background-color: #6f42c1; color: white; margin-right: 10px; margin-top: 15px; }
+        .reset-btn { background-color: #6c757d; color: white; margin-top: 15px; float: right; }
+        .action-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; flex-wrap: wrap; }
+        
+        /* Print/PDF Exclusion */
+        @media print { .no-print { display: none !important; } }
+
+        /* RESPONSIVIDADE MOBILE */
+        @media screen and (max-width: 768px) {
+            .container { padding: 10px; }
+            table { border: 0; width: 100%; display: block; }
+            thead { display: none; }
+            tr { border: 1px solid #ccc; display: block; margin-bottom: 15px; border-radius: 8px; }
+            td { border-bottom: 1px solid #ddd; display: block; text-align: right; padding: 8px; font-size: 1em; position: relative; }
+            td:before { content: attr(data-label); float: left; font-weight: bold; text-transform: uppercase; margin-right: 10px; color: #0056b3; }
+            td:last-child { border-bottom: 0; }
+            .action-controls { flex-direction: column; align-items: stretch; }
+            .btn-export, .reset-btn { width: 100%; margin: 5px 0; float: none; }
+            .tab-container { white-space: nowrap; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Painel de Produtividade Semanal (Check-in/Check-out)</h1>
+    <div id="status-message">Conectando ao banco de dados...</div>
+
+    <!-- Tabs (Seleção de Empresa) -->
+    <div class="tab-container" id="tab-nav">
+        <button class="tab-button active" onclick="openTab('AcademiaAutoPrime', event)">AcademiaAutoPrime</button>
+        <button class="tab-button" onclick="openTab('RedeAutoPrime', event)">RedeAutoPrime</button>
+        <button class="tab-button" onclick="openTab('VagasAutoPrime', event)">VagasAutoPrime</button>
+    </div>
+
+    <!-- Conteúdo das Tabs -->
+    <div id="AcademiaAutoPrime" class="tab-content active">
+        <h2>Relatório de Execução - AcademiaAutoPrime</h2>
+        <div class="progress-container">
+            <h3>Progresso Semanal: <span id="progress-text-AcademiaAutoPrime">0%</span></h3>
+            <div class="progress-bar" id="weekly-progress-bar-AcademiaAutoPrime"></div>
+        </div>
+        <table id="table-AcademiaAutoPrime">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Dia</th>
+                    <th style="width: 25%;">Foco da Tarefa</th>
+                    <th style="width: 15%;">Check-in (Data/Hora)</th>
+                    <th style="width: 15%;">Check-out (Data/Hora)</th>
+                    <th style="width: 10%;">Duração</th>
+                    <th class="no-print" style="width: 14%;">Ação</th>
+                    <th style="width: 8%;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="task-list-AcademiaAutoPrime"></tbody>
+        </table>
+        <div class="action-controls no-print">
+            <button class="btn btn-export" onclick="exportReport('AcademiaAutoPrime')">Exportar Relatório (PDF)</button>
+            <button class="btn reset-btn" onclick="showConfirmation('AcademiaAutoPrime', 'Academia')">Reiniciar Semana (Academia)</button>
+        </div>
+    </div>
+
+    <div id="RedeAutoPrime" class="tab-content">
+        <h2>Relatório de Execução - RedeAutoPrime</h2>
+        <div class="progress-container">
+            <h3>Progresso Semanal: <span id="progress-text-RedeAutoPrime">0%</span></h3>
+            <div class="progress-bar" id="weekly-progress-bar-RedeAutoPrime"></div>
+        </div>
+        <table id="table-RedeAutoPrime">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Dia</th>
+                    <th style="width: 25%;">Foco da Tarefa</th>
+                    <th style="width: 15%;">Check-in (Data/Hora)</th>
+                    <th style="width: 15%;">Check-out (Data/Hora)</th>
+                    <th style="width: 10%;">Duração</th>
+                    <th class="no-print" style="width: 14%;">Ação</th>
+                    <th style="width: 8%;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="task-list-RedeAutoPrime"></tbody>
+        </table>
+        <div class="action-controls no-print">
+            <button class="btn btn-export" onclick="exportReport('RedeAutoPrime')">Exportar Relatório (PDF)</button>
+            <button class="btn reset-btn" onclick="showConfirmation('RedeAutoPrime', 'Rede')">Reiniciar Semana (Rede)</button>
+        </div>
+    </div>
+
+    <div id="VagasAutoPrime" class="tab-content">
+        <h2>Relatório de Execução - VagasAutoPrime</h2>
+        <div class="progress-container">
+            <h3>Progresso Semanal: <span id="progress-text-VagasAutoPrime">0%</span></h3>
+            <div class="progress-bar" id="weekly-progress-bar-VagasAutoPrime"></div>
+        </div>
+        <table id="table-VagasAutoPrime">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Dia</th>
+                    <th style="width: 25%;">Foco da Tarefa</th>
+                    <th style="width: 15%;">Check-in (Data/Hora)</th>
+                    <th style="width: 15%;">Check-out (Data/Hora)</th>
+                    <th style="width: 10%;">Duração</th>
+                    <th class="no-print" style="width: 14%;">Ação</th>
+                    <th style="width: 8%;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="task-list-VagasAutoPrime"></tbody>
+        </table>
+        <div class="action-controls no-print">
+            <button class="btn btn-export" onclick="exportReport('VagasAutoPrime')">Exportar Relatório (PDF)</button>
+            <button class="btn reset-btn" onclick="showConfirmation('VagasAutoPrime', 'Vagas')">Reiniciar Semana (Vagas)</button>
+        </div>
+    </div>
+
+    <!-- Custom Modal for Confirmation (replacing confirm()) -->
+    <div id="custom-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 1000;">
+        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 90%; width: 400px; text-align: center;">
+            <p id="modal-message" style="font-size: 1.1em; margin-bottom: 20px;">Tem certeza que deseja REINICIAR o progresso?</p>
+            <button class="btn btn-finish" id="modal-cancel" style="margin-right: 15px;">Cancelar</button>
+            <button class="btn btn-start" id="modal-confirm">Confirmar Reinício</button>
+        </div>
+    </div>
+
+</div>
+
+<script type="module">
+    // --- FIREBASE IMPORTS ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+        getFirestore, doc, setDoc, onSnapshot, getDoc, setLogLevel
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Set Firestore log level for debugging
+    setLogLevel('debug');
+
+    // --- CONFIGURAÇÃO FIREBASE ---
+    
+    // As variáveis globais __firebase_config e __initial_auth_token são fornecidas pelo ambiente.
+    // Usamos uma configuração padrão como fallback caso as variáveis do ambiente não estejam disponíveis (ex: rodando localmente).
+    const DEFAULT_FIREBASE_CONFIG = {
+        apiKey: "AIzaSyDcwxL8Z0fl9vUGBljiAcl5070aQJxpmnA",
+        authDomain: "workmkt-f30ca.firebaseapp.com",
+        projectId: "workmkt-f30ca",
+        storageBucket: "workmkt-f30ca.firebasestorage.app",
+        messagingSenderId: "816025416167",
+        appId: "1:816025416167:web:9b8995c09776dc44a4cd42",
+        measurementId: "G-5P6QSWTMSQ"
+    };
+
+    let db;
+    let auth;
+    let unsubscribeSnapshot = null;
+    let currentTaskData = {}; // Cache local dos dados da empresa ativa
+    let isInitialized = false;
+
+    // --- INICIALIZAÇÃO FIREBASE ---
+
+    const initFirebase = async () => {
+        const statusEl = document.getElementById('status-message');
+        statusEl.style.display = 'block';
+
+        try {
+            // Tenta obter a configuração do ambiente, se não, usa o fallback
+            let config;
+            let initialAuthToken = null;
+
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                config = JSON.parse(__firebase_config);
+                initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            } else {
+                config = DEFAULT_FIREBASE_CONFIG;
+                console.warn("Usando configuração Firebase padrão (Variáveis do ambiente não encontradas).");
+            }
+            
+            const app = initializeApp(config);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            statusEl.classList.remove('error');
+            statusEl.classList.add('success');
+            statusEl.textContent = 'Conectando (Tentando autenticação)...';
+            
+            // 1. Tenta usar o token de autenticação personalizado (preferido neste ambiente)
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+            } 
+            // 2. Se não houver token, tenta o login anônimo (padrão para apps públicos)
+            else {
+                await signInAnonymously(auth);
+            }
+
+            isInitialized = true;
+            statusEl.textContent = `Conectado com sucesso. ID de sessão: ${auth.currentUser.uid}`;
+            
+            // Inicia o listener de dados para a primeira empresa
+            openTab(currentActiveCompany); 
+
+        } catch (error) {
+            console.error("Erro Datalhado (Console do Navegador):", error);
+            statusEl.classList.remove('success');
+            statusEl.classList.add('error');
+            
+            // Mensagem de erro que aponta diretamente para a origem do problema, incluindo o código do erro
+            statusEl.textContent = `ERRO: Não foi possível conectar ao Firebase. Verifique as CHAVES ou REGRAS de segurança. Detalhes: (${error.code || error.message})`;
+        }
+    };
+    
+    // --- CONSTANTES E FUNÇÕES DO APP ---
+    
+    const companies = ['AcademiaAutoPrime', 'RedeAutoPrime', 'VagasAutoPrime'];
+    let currentActiveCompany = 'AcademiaAutoPrime';
+
+    // Lista de tarefas (MANTIDA)
+    const baseTasks = [
+        { id: 'seg_plan', day: 'Segunda', name: 'Planejamento de Conteúdo e Justificativas (08:30 - 12:00)' },
+        { id: 'seg_leg', day: 'Segunda', name: 'Criação de Legendas e Roteiros (13:00 - 17:00)' },
+        { id: 'ter_art', day: 'Terça', name: 'Criação de Artes e Edição de Vídeos (08:30 - 15:30)' },
+        { id: 'ter_age', day: 'Terça', name: 'Agendamento de Conteúdo (15:30 - 17:00)' },
+        { id: 'qua_eng', day: 'Quarta', name: 'Engajamento e Atendimento Proativo (08:00 - 11:00)' },
+        { id: 'qua_pes', day: 'Quarta', name: 'Pesquisa de Tendências e Ideias (13:00 - 15:00)' },
+        { id: 'qui_pro', day: 'Quinta', name: 'Prospecção e Interação Ativa (09:00 - 10:30)' },
+        { id: 'qui_ana', day: 'Quinta', name: 'Análise e Relatório de Métricas (13:00 - 17:00)' },
+        { id: 'sex_org', day: 'Sexta', name: 'Fechamento e Organização Digital (09:00 - 12:00)' },
+        { id: 'sex_ali', day: 'Sexta', name: 'Alinhamento e Feedback (14:00 - 15:00)' }
+    ];
+    
+    /**
+     * Constrói a referência do documento no Firestore.
+     * Coleção: "Work", Documento: companyId
+     */
+    const getCompanyDocRef = (companyId) => {
+        // Usando a coleção "Work" diretamente (conforme solicitada)
+        return doc(db, "Work", companyId);
+    };
+
+    const formatDateTime = (dateString) => {
+        if (!dateString) return '—';
+        try {
+            const d = new Date(dateString);
+            const datePart = d.toLocaleDateString('pt-BR');
+            const timePart = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return `<span style="white-space: nowrap;">${datePart}</span><br>${timePart}`;
+        } catch {
+            return '—'; // Retorna em caso de data inválida
+        }
+    };
+
+    const formatDuration = (startTime, endTime) => {
+        if (!startTime || !endTime) return '—';
+        try {
+            const durationMs = new Date(endTime) - new Date(startTime);
+            const hours = Math.floor(durationMs / (1000 * 60 * 60));
+            const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+            return `${hours}h ${minutes}m`;
+        } catch {
+            return '—';
+        }
+    };
+
+    // --- RENDERIZAÇÃO E LÓGICA DE DADOS (ATUALIZADA) ---
+
+    const renderTasks = (company) => {
+        const list = document.getElementById(`task-list-${company}`);
+        list.innerHTML = '';
+        const taskStatus = currentTaskData[company] || {};
+        const totalTasks = baseTasks.length;
+        let completedTasks = 0;
+        const headers = ['Dia', 'Foco da Tarefa', 'Check-in (Data/Hora)', 'Check-out (Data/Hora)', 'Duração', 'Ação', 'Status'];
+
+        baseTasks.forEach(task => {
+            const status = taskStatus[task.id] || {};
+            const startTime = status.checkInTime;
+            const endTime = status.checkOutTime;
+            const isFinished = !!endTime;
+            const isInProgress = !!startTime && !endTime;
+
+            if (isFinished) completedTasks++;
+
+            const statusClass = isFinished ? 'status-done' : (isInProgress ? 'status-inprogress' : '');
+            const statusText = isFinished ? 'Concluído' : (isInProgress ? 'Em Execução' : 'Pendente');
+            
+            const actionButton = `
+                ${!isInProgress && !isFinished ? `<button class="btn btn-start" onclick="checkIn('${company}', '${task.id}')">Check-in</button>` : ''}
+                ${isInProgress ? `<button class="btn btn-finish" onclick="checkOut('${company}', '${task.id}')">Check-out</button>` : ''}
+                ${isFinished ? '—' : ''}
+            `;
+            
+            const row = list.insertRow();
+            row.innerHTML = `
+                <td data-label="${headers[0]}">${task.day}</td>
+                <td data-label="${headers[1]}">${task.name}</td>
+                <td data-label="${headers[2]}">${formatDateTime(startTime)}</td>
+                <td data-label="${headers[3]}">${formatDateTime(endTime)}</td>
+                <td data-label="${headers[4]}">${formatDuration(startTime, endTime)}</td>
+                <td class="no-print" data-label="${headers[5]}">${actionButton}</td>
+                <td data-label="${headers[6]}"><span class="${statusClass}">${statusText}</span></td>
+            `;
+        });
+
+        updateProgress(company, totalTasks, completedTasks);
+    };
+
+    const updateProgress = (company, total, completed) => {
+        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const progressBar = document.getElementById(`weekly-progress-bar-${company}`);
+        const progressText = document.getElementById(`progress-text-${company}`);
+
+        progressBar.style.width = `${percentage}%`;
+        progressText.textContent = `${percentage}%`;
+        progressBar.textContent = percentage > 5 ? `${percentage}%` : '';
+
+        progressText.style.color = (percentage <= 5 && percentage > 0) ? '#333' : 'white';
+        if (percentage > 5) {
+            progressBar.style.backgroundColor = '#28a745';
+        } else if (percentage > 0) {
+            progressBar.style.backgroundColor = '#ffc107';
+        } else {
+            progressBar.style.backgroundColor = '#e9ecef';
+            progressText.style.color = '#333';
+        }
+    };
+
+    const updateFirestore = async (company, data) => {
+        if (!isInitialized) return console.error("Firebase não inicializado. Operação de escrita ignorada.");
+        try {
+            const docRef = getCompanyDocRef(company);
+            // setDoc com merge: false substitui o mapa de tarefas por completo
+            await setDoc(docRef, data, { merge: false });
+        } catch (error) {
+            console.error(`Erro ao atualizar dados para ${company}:`, error);
+        }
+    };
+    
+    // --- AÇÕES DE CHECK-IN / CHECK-OUT (FIREBASE) ---
+
+    window.checkIn = async (company, taskId) => {
+        // **NOVO**: Encontra o nome da tarefa na lista base
+        const taskDetails = baseTasks.find(t => t.id === taskId);
+        if (!taskDetails) {
+            console.error(`Tarefa com ID ${taskId} não encontrada.`);
+            return;
+        }
+
+        // Clonamos o objeto de dados da empresa para manipulação local
+        const data = JSON.parse(JSON.stringify(currentTaskData[company] || {}));
+        
+        // 1. Faz o Check-out automático em qualquer outra tarefa em andamento
+        for (const id in data) {
+            if (data[id].checkInTime && !data[id].checkOutTime && id !== taskId) {
+                // Preserva o taskName original
+                data[id].checkOutTime = new Date().toISOString();
+                console.log(`Checkout automático forçado em ${id}`);
+            }
+        }
+        
+        // 2. Faz o Check-in na tarefa atual, INCLUINDO O NOME DA ETAPA
+        data[taskId] = {
+            checkInTime: new Date().toISOString(),
+            checkOutTime: null,
+            // Adiciona o nome completo da tarefa/etapa ao objeto no Firestore
+            taskName: taskDetails.name 
+        };
+        
+        await updateFirestore(company, data);
+    };
+
+    window.checkOut = async (company, taskId) => {
+        const data = JSON.parse(JSON.stringify(currentTaskData[company] || {}));
+        
+        if (!data[taskId] || data[taskId].checkOutTime) return;
+
+        // O taskName já deve estar presente a partir do check-in
+        data[taskId].checkOutTime = new Date().toISOString();
+        
+        await updateFirestore(company, data);
+    };
+
+    // --- FUNÇÕES DE NAVEGAÇÃO E EXPORTAÇÃO ---
+
+    const setupRealtimeListener = (company) => {
+        if (unsubscribeSnapshot) {
+            unsubscribeSnapshot(); // Remove o listener anterior
+        }
+        if (!isInitialized) return console.warn("Listener não iniciado: Firebase não está pronto.");
+
+        const docRef = getCompanyDocRef(company);
+
+        // Configura um novo listener em tempo real
+        unsubscribeSnapshot = onSnapshot(docRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                // Atualiza o cache local com os dados mais recentes do servidor
+                currentTaskData[company] = docSnapshot.data() || {};
+                console.log(`Dados de ${company} atualizados em tempo real.`);
+            } else {
+                // Se o documento não existir, inicializa no cache e cria no Firestore
+                currentTaskData[company] = {};
+                setDoc(docRef, {}); // Cria o documento vazio para iniciar o rastreamento
+            }
+            renderTasks(company); // Renderiza a tela com os novos dados
+        }, (error) => {
+            console.error("Erro no listener de tempo real (onSnapshot):", error);
+            document.getElementById('status-message').textContent = 'ERRO: Falha ao sincronizar dados em tempo real.';
+            document.getElementById('status-message').classList.add('error');
+        });
+    };
+
+    window.openTab = (companyName, event = null) => {
+        if (!isInitialized) return; // Não troca de aba se o Firebase não estiver pronto.
+
+        if (currentActiveCompany === companyName && unsubscribeSnapshot) return;
+
+        currentActiveCompany = companyName;
+        
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(companyName).classList.add('active');
+
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.remove('active');
+        });
+        if (event && event.currentTarget) {
+             event.currentTarget.classList.add('active');
+        } else {
+             document.querySelector(`.tab-button[onclick*="'${companyName}'"]`).classList.add('active');
+        }
+        
+        setupRealtimeListener(companyName); // Inicia a escuta de dados da nova aba
+    };
+
+    window.exportReport = (company) => {
+        if (!isInitialized) return alert('Aguarde a conexão com o banco de dados antes de exportar.');
+        
+        const element = document.getElementById(company);
+        const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+        
+        const opt = {
+            margin:       0.5,
+            filename:     `Relatorio_Workflow_${company}_${today}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, logging: true },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        
+        const elementToPrint = element.cloneNode(true);
+        // Remove elementos não destinados ao PDF
+        elementToPrint.querySelectorAll('.no-print').forEach(el => el.remove());
+
+        const header = document.createElement('h2');
+        header.textContent = `Relatório Semanal de Execução - ${company} (${today})`;
+        
+        const wrapper = document.createElement('div');
+        wrapper.appendChild(header);
+        wrapper.appendChild(elementToPrint.querySelector('.progress-container').cloneNode(true));
+        wrapper.appendChild(elementToPrint.querySelector('table').cloneNode(true));
+
+        html2pdf().set(opt).from(wrapper).save();
+    };
+
+    // --- FUNÇÕES DE MODAL/CONFIRMAÇÃO ---
+    
+    let pendingResetCompany = null;
+
+    window.showConfirmation = (companyId, companyAlias) => {
+        if (!isInitialized) return alert('Aguarde a conexão com o banco de dados.');
+        pendingResetCompany = companyId;
+        document.getElementById('modal-message').textContent = `Tem certeza que deseja REINICIAR o progresso de TODAS as tarefas da ${companyAlias}? Esta ação é irreversível e afetará todos os usuários.`;
+        document.getElementById('custom-modal').style.display = 'flex';
+    };
+
+    document.getElementById('modal-cancel').onclick = () => {
+        document.getElementById('custom-modal').style.display = 'none';
+        pendingResetCompany = null;
+    };
+
+    document.getElementById('modal-confirm').onclick = async () => {
+        if (pendingResetCompany) {
+            await resetAll(pendingResetCompany);
+            document.getElementById('custom-modal').style.display = 'none';
+            pendingResetCompany = null;
+        }
+    };
+    
+    window.resetAll = async (company) => {
+        // Envia um objeto vazio para o Firebase, resetando o documento.
+        await updateFirestore(company, {});
+    };
+
+    // --- INICIALIZAÇÃO GERAL ---
+
+    window.onload = () => {
+        initFirebase();
+    };
+    
+</script>
+
+</body>
+</html>
