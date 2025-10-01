@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Gestão da Rotina Semanal - AutoPrime</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 2em;
+        }
+        /* --- Estrutura de Tabs (Empresas) --- */
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab-button {
+            padding: 12px 20px;
+            cursor: pointer;
+            border: none;
+            background-color: #f1f1f1;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            margin-right: 5px;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #555;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .tab-button.active {
+            background-color: #0056b3;
+            color: white;
+            border-bottom: 2px solid #0056b3;
+        }
+        .tab-content {
+            display: none;
+            padding-top: 20px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* --- Progress Bar --- */
+        .progress-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #e9ecef;
+        }
+        .progress-bar {
+            height: 30px;
+            background-color: #28a745;
+            width: 0%;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+            border-radius: 6px;
+            transition: width 0.4s ease;
+            font-weight: bold;
+        }
+        /* --- Tabela --- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        th, td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+        th {
+            background-color: #0056b3;
+            color: white;
+            font-weight: 600;
+        }
+        /* --- Botões e Status --- */
+        .status-done {
+            color: white;
+            background-color: #28a745;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .status-inprogress {
+            color: #333;
+            background-color: #ffc107;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .btn-start { background-color: #007bff; color: white; }
+        .btn-start:hover { background-color: #0056b3; }
+        .btn-finish { background-color: #dc3545; color: white; }
+        .btn-finish:hover { background-color: #c82333; }
+        .btn-export { background-color: #6f42c1; color: white; margin-right: 10px; }
+        .reset-btn {
+            background-color: #6c757d;
+            color: white;
+            margin-top: 15px;
+            float: right;
+        }
+        .action-controls {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+        }
+        
+        /* Ajuste Crucial: Define que a coluna de Ação só será ocultada se
+           a classe no-print estiver aplicada, garantindo a visualização normal
+        */
+        .no-print {
+            /* Padrão: Visível */
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Painel de Produtividade Semanal (Check-in/Check-out)</h1>
+    
+    <div class="tab-container">
+        <button class="tab-button active" onclick="openTab('AcademiaAutoPrime', event)">AcademiaAutoPrime</button>
+        <button class="tab-button" onclick="openTab('RedeAutoPrime', event)">RedeAutoPrime</button>
+        <button class="tab-button" onclick="openTab('VagasAutoPrime', event)">VagasAutoPrime</button>
+    </div>
+
+    <div id="AcademiaAutoPrime" class="tab-content active">
+        <h2>Relatório de Execução - AcademiaAutoPrime</h2>
+        <div class="progress-container">
+            <h3>Progresso Semanal: <span id="progress-text-AcademiaAutoPrime">0%</span></h3>
+            <div class="progress-bar" id="weekly-progress-bar-AcademiaAutoPrime"></div>
+        </div>
+        <table id="table-AcademiaAutoPrime">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Dia</th>
+                    <th style="width: 25%;">Foco da Tarefa</th>
+                    <th style="width: 15%;">Check-in (Data/Hora)</th>
+                    <th style="width: 15%;">Check-out (Data/Hora)</th>
+                    <th style="width: 10%;">Duração</th>
+                    <th class="no-print" style="width: 14%;">Ação</th>
+                    <th style="width: 8%;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="task-list-AcademiaAutoPrime"></tbody>
+        </table>
+        <div class="action-controls no-print">
+            <button class="btn btn-export" onclick="exportReport('AcademiaAutoPrime')">Exportar Relatório (PDF)</button>
+            <button class="btn reset-btn" onclick="resetAll('AcademiaAutoPrime')">Reiniciar Semana (Academia)</button>
+        </div>
+    </div>
+
+    <div id="RedeAutoPrime" class="tab-content">
+        <h2>Relatório de Execução - RedeAutoPrime</h2>
+        <div class="progress-container">
+            <h3>Progresso Semanal: <span id="progress-text-RedeAutoPrime">0%</span></h3>
+            <div class="progress-bar" id="weekly-progress-bar-RedeAutoPrime"></div>
+        </div>
+        <table id="table-RedeAutoPrime">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Dia</th>
+                    <th style="width: 25%;">Foco da Tarefa</th>
+                    <th style="width: 15%;">Check-in (Data/Hora)</th>
+                    <th style="width: 15%;">Check-out (Data/Hora)</th>
+                    <th style="width: 10%;">Duração</th>
+                    <th class="no-print" style="width: 14%;">Ação</th>
+                    <th style="width: 8%;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="task-list-RedeAutoPrime"></tbody>
+        </table>
+        <div class="action-controls no-print">
+            <button class="btn btn-export" onclick="exportReport('RedeAutoPrime')">Exportar Relatório (PDF)</button>
+            <button class="btn reset-btn" onclick="resetAll('RedeAutoPrime')">Reiniciar Semana (Rede)</button>
+        </div>
+    </div>
+
+    <div id="VagasAutoPrime" class="tab-content">
+        <h2>Relatório de Execução - VagasAutoPrime</h2>
+        <div class="progress-container">
+            <h3>Progresso Semanal: <span id="progress-text-VagasAutoPrime">0%</span></h3>
+            <div class="progress-bar" id="weekly-progress-bar-VagasAutoPrime"></div>
+        </div>
+        <table id="table-VagasAutoPrime">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Dia</th>
+                    <th style="width: 25%;">Foco da Tarefa</th>
+                    <th style="width: 15%;">Check-in (Data/Hora)</th>
+                    <th style="width: 15%;">Check-out (Data/Hora)</th>
+                    <th style="width: 10%;">Duração</th>
+                    <th class="no-print" style="width: 14%;">Ação</th>
+                    <th style="width: 8%;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="task-list-VagasAutoPrime"></tbody>
+        </table>
+        <div class="action-controls no-print">
+            <button class="btn btn-export" onclick="exportReport('VagasAutoPrime')">Exportar Relatório (PDF)</button>
+            <button class="btn reset-btn" onclick="resetAll('VagasAutoPrime')">Reiniciar Semana (Vagas)</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const companies = ['AcademiaAutoPrime', 'RedeAutoPrime', 'VagasAutoPrime'];
+    let currentActiveCompany = 'AcademiaAutoPrime';
+
+    // Lista de tarefas BASEADA NA ESTRUTURA SEMANAL DA SUA TABELA
+    const baseTasks = [
+        { id: 'seg_plan', day: 'Segunda', name: 'Planejamento de Conteúdo e Justificativas (08:30 - 12:00)' },
+        { id: 'seg_leg', day: 'Segunda', name: 'Criação de Legendas e Roteiros (13:00 - 17:00)' },
+        { id: 'ter_art', day: 'Terça', name: 'Criação de Artes e Edição de Vídeos (08:30 - 15:30)' },
+        { id: 'ter_age', day: 'Terça', name: 'Agendamento de Conteúdo (15:30 - 17:00)' },
+        { id: 'qua_eng', day: 'Quarta', name: 'Engajamento e Atendimento Proativo (08:00 - 11:00)' },
+        { id: 'qua_pes', day: 'Quarta', name: 'Pesquisa de Tendências e Ideias (13:00 - 15:00)' },
+        { id: 'qui_pro', day: 'Quinta', name: 'Prospecção e Interação Ativa (09:00 - 10:30)' },
+        { id: 'qui_ana', day: 'Quinta', name: 'Análise e Relatório de Métricas (13:00 - 17:00)' },
+        { id: 'sex_org', day: 'Sexta', name: 'Fechamento e Organização Digital (09:00 - 12:00)' },
+        { id: 'sex_ali', day: 'Sexta', name: 'Alinhamento e Feedback (14:00 - 15:00)' }
+    ];
+
+    let allTaskStatus = JSON.parse(localStorage.getItem('workflowTasks_multicompany')) || {};
+
+    companies.forEach(comp => {
+        if (!allTaskStatus[comp]) {
+            allTaskStatus[comp] = {};
+        }
+    });
+
+    // --- Funções de Tempo e Formatação ---
+
+    const formatDateTime = (dateString) => {
+        if (!dateString) return '—';
+        const d = new Date(dateString);
+        // Formato DD/MM/AAAA HH:MM:SS
+        const datePart = d.toLocaleDateString('pt-BR');
+        const timePart = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return `${datePart} ${timePart}`;
+    };
+
+    const formatDuration = (startTime, endTime) => {
+        if (!startTime || !endTime) return '—';
+        const durationMs = new Date(endTime) - new Date(startTime);
+        const hours = Math.floor(durationMs / (1000 * 60 * 60));
+        const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+        return `${hours}h ${minutes}m`;
+    };
+
+    // --- Funções de Renderização e Lógica ---
+
+    const renderTasks = (company) => {
+        const list = document.getElementById(`task-list-${company}`);
+        list.innerHTML = '';
+        const taskStatus = allTaskStatus[company];
+        const totalTasks = baseTasks.length;
+        let completedTasks = 0;
+
+        baseTasks.forEach(task => {
+            const status = taskStatus[task.id] || {};
+            const startTime = status.checkInTime;
+            const endTime = status.checkOutTime;
+            const isFinished = !!endTime;
+            const isInProgress = !!startTime && !endTime;
+
+            if (isFinished) completedTasks++;
+
+            const statusClass = isFinished ? 'status-done' : (isInProgress ? 'status-inprogress' : '');
+            const statusText = isFinished ? 'Concluído' : (isInProgress ? 'Em Execução' : 'Pendente');
+
+            const row = list.insertRow();
+            row.innerHTML = `
+                <td>${task.day}</td>
+                <td>${task.name}</td>
+                <td>${formatDateTime(startTime)}</td>
+                <td>${formatDateTime(endTime)}</td>
+                <td>${formatDuration(startTime, endTime)}</td>
+                <td class="no-print">
+                    ${!isInProgress && !isFinished ? `<button class="btn btn-start" onclick="checkIn('${company}', '${task.id}')">Check-in</button>` : ''}
+                    ${isInProgress ? `<button class="btn btn-finish" onclick="checkOut('${company}', '${task.id}')">Check-out</button>` : ''}
+                    ${isFinished ? '—' : ''}
+                </td>
+                <td><span class="${statusClass}">${statusText}</span></td>
+            `;
+        });
+
+        updateProgress(company, totalTasks, completedTasks);
+        saveStatus();
+    };
+
+    const checkIn = (company, taskId) => {
+        // Logoff automático de outras tarefas em andamento (foco único)
+        const currentTasks = allTaskStatus[company];
+        for (const id in currentTasks) {
+            if (currentTasks[id].checkInTime && !currentTasks[id].checkOutTime && id !== taskId) {
+                // Se houver uma tarefa em andamento, faz o checkout automático dela
+                currentTasks[id].checkOutTime = new Date().toISOString();
+            }
+        }
+        
+        if (allTaskStatus[company][taskId] && allTaskStatus[company][taskId].checkInTime && !allTaskStatus[company][taskId].checkOutTime) return;
+
+        allTaskStatus[company][taskId] = {
+            checkInTime: new Date().toISOString(),
+            checkOutTime: null
+        };
+        renderTasks(company);
+    };
+
+    const checkOut = (company, taskId) => {
+        if (!allTaskStatus[company][taskId] || allTaskStatus[company][taskId].checkOutTime) return;
+
+        allTaskStatus[company][taskId].checkOutTime = new Date().toISOString();
+        renderTasks(company);
+    };
+
+    const updateProgress = (company, total, completed) => {
+        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const progressBar = document.getElementById(`weekly-progress-bar-${company}`);
+        const progressText = document.getElementById(`progress-text-${company}`);
+
+        progressBar.style.width = `${percentage}%`;
+        progressText.textContent = `${percentage}%`;
+        progressBar.textContent = percentage > 5 ? `${percentage}%` : '';
+
+        // Lógica de cor da barra de progresso
+        progressText.style.color = (percentage <= 5 && percentage > 0) ? '#333' : 'white';
+        if (percentage > 5) {
+            progressBar.style.backgroundColor = '#28a745';
+        } else if (percentage > 0) {
+            progressBar.style.backgroundColor = '#ffc107';
+        } else {
+            progressBar.style.backgroundColor = '#e9ecef';
+            progressText.style.color = '#333';
+        }
+    };
+
+    const saveStatus = () => {
+        localStorage.setItem('workflowTasks_multicompany', JSON.stringify(allTaskStatus));
+    };
+
+    const resetAll = (company) => {
+        if (confirm(`Tem certeza que deseja REINICIAR o progresso de TODAS as tarefas da ${company}? Esta ação é irreversível.`)) {
+            allTaskStatus[company] = {};
+            saveStatus();
+            renderTasks(company);
+        }
+    };
+
+    // --- Funções de Navegação e Exportação ---
+
+    const openTab = (companyName, event) => {
+        currentActiveCompany = companyName;
+        
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(companyName).classList.add('active');
+
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.remove('active');
+        });
+        if (event && event.currentTarget) {
+             event.currentTarget.classList.add('active');
+        } else {
+             // Garante que o botão certo seja ativado na inicialização
+             document.querySelector(`.tab-button[onclick*="'${companyName}'"]`).classList.add('active');
+        }
+        
+        renderTasks(companyName);
+    };
+
+    const exportReport = (company) => {
+        const element = document.getElementById(company);
+        const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+        
+        // Configurações para o PDF
+        const opt = {
+            margin:       0.5,
+            filename:     `Relatorio_Workflow_${company}_${today}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, logging: true },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        
+        // Clona o elemento para remover a coluna 'Ação' apenas no PDF
+        const elementToPrint = element.cloneNode(true);
+        elementToPrint.querySelectorAll('.no-print').forEach(el => el.remove());
+        
+        // Remove a coluna 'Ação' do cabeçalho da tabela clonada
+        const headerAction = elementToPrint.querySelector('thead th:last-child');
+        if (headerAction.textContent.trim() === 'Status') {
+            // A coluna 'Ação' já foi removida com o .no-print, então ajustamos o cabeçalho.
+        }
+
+        // Adiciona um título mais claro ao relatório
+        const header = document.createElement('h2');
+        header.textContent = `Relatório Semanal de Execução - ${company} (${today})`;
+        
+        const wrapper = document.createElement('div');
+        wrapper.appendChild(header);
+        wrapper.appendChild(elementToPrint.querySelector('.progress-container').cloneNode(true));
+        wrapper.appendChild(elementToPrint.querySelector('table').cloneNode(true));
+
+        // Chama a função da biblioteca para gerar o PDF
+        html2pdf().set(opt).from(wrapper).save();
+    };
+
+    // --- Inicialização ---
+
+    window.onload = () => {
+        companies.forEach(company => renderTasks(company));
+        
+        // Garante que a aba da primeira empresa esteja ativa ao carregar
+        openTab(companies[0]); 
+    };
+
+</script>
+
+</body>
+</html>
